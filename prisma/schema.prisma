@@ -103,6 +103,7 @@ model Product {
   sellPrice   Int
   stock       Int      @default(0)
   minStock    Int      @default(5)
+  lowStockThreshold Int @default(5)
   image       String?
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())

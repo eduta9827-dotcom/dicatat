@@ -15,6 +15,8 @@ import {
   Tooltip,
   ResponsiveContainer
 } from "recharts";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -72,8 +74,73 @@ export default function SalesReportPage() {
     fetchData();
   }, [dateRange]);
 
-  const handlePrint = () => {
-    window.print();
+  const handleExportPDF = () => {
+    if (!data) return;
+
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.width;
+    
+    // Header
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.text("Laporan Penjualan", pageWidth / 2, 20, { align: "center" });
+    
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    const dateStr = `Periode: ${dateRange?.from ? format(dateRange.from, "dd/MM/yyyy") : ""} - ${dateRange?.to ? format(dateRange.to, "dd/MM/yyyy") : ""}`;
+    doc.text(dateStr, pageWidth / 2, 28, { align: "center" });
+
+    // Summary
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.text("Ringkasan", 14, 40);
+    
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Total Pendapatan: ${formatCurrency(data.summary.totalRevenue)}`, 14, 48);
+    doc.text(`Total Transaksi: ${data.summary.totalTransactions}`, 14, 54);
+    doc.text(`Produk Terjual: ${data.summary.totalItems} item`, 14, 60);
+
+    // Table 1: Penjualan per Produk
+    let yPos = 70;
+    doc.setFont("helvetica", "bold");
+    doc.text("Penjualan per Produk", 14, yPos);
+    
+    autoTable(doc, {
+      startY: yPos + 5,
+      head: [["Nama Produk", "Qty Terjual", "Total Pendapatan", "% Total"]],
+      body: data.productSales.map((p: any) => [
+        p.name,
+        p.qty.toString(),
+        formatCurrency(p.total),
+        `${p.percentage.toFixed(2)}%`
+      ]),
+      theme: 'grid',
+      headStyles: { fillColor: [13, 31, 61] },
+      styles: { fontSize: 9 },
+    });
+    
+    yPos = (doc as any).lastAutoTable.finalY + 15;
+
+    // Table 2: Penjualan per Kategori
+    doc.setFont("helvetica", "bold");
+    doc.text("Penjualan per Kategori", 14, yPos);
+
+    autoTable(doc, {
+      startY: yPos + 5,
+      head: [["Kategori", "Qty Terjual", "Total Pendapatan", "% Total"]],
+      body: data.categorySales.map((c: any) => [
+        c.name,
+        c.qty.toString(),
+        formatCurrency(c.total),
+        `${c.percentage.toFixed(2)}%`
+      ]),
+      theme: 'grid',
+      headStyles: { fillColor: [13, 31, 61] },
+      styles: { fontSize: 9 },
+    });
+
+    doc.save(`laporan_penjualan_${new Date().getTime()}.pdf`);
   };
 
   const handleExportCSV = () => {
@@ -123,9 +190,9 @@ export default function SalesReportPage() {
               <Download className="w-4 h-4 mr-2" />
               CSV
             </Button>
-            <Button onClick={handlePrint} variant="outline" className="flex-1 sm:flex-none">
+            <Button onClick={handleExportPDF} variant="outline" className="flex-1 sm:flex-none text-[#0D1F3D] border-[#0D1F3D]">
               <Printer className="w-4 h-4 mr-2" />
-              PDF
+              Export PDF
             </Button>
           </div>
         </div>

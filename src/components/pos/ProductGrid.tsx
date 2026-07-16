@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Search, Loader2, PackageX } from "lucide-react";
+import { Search, Loader2, PackageX, Camera } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { formatCurrency } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
-import { POSProduct } from "@/types/pos"; // We'll create this types file later or define inline
+import { Button } from "@/components/ui/button";
+import { POSProduct } from "@/types/pos"; 
+import { BarcodeScannerModal } from "./BarcodeScannerModal";
 
 interface Category {
   id: string;
@@ -33,7 +35,23 @@ export function ProductGrid({
   selectedCategory,
   setSelectedCategory,
 }: ProductGridProps) {
-  
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+
+  const handleScan = (barcode: string) => {
+    setSearchQuery(barcode);
+    const product = products.find(p => p.barcode === barcode);
+    if (product) {
+      if (product.stock > 0) {
+        onAddToCart(product);
+        // Clear search query after short delay if we want, or keep it.
+      } else {
+        alert("Produk habis (Out of Stock).");
+      }
+    } else {
+      alert(`Produk dengan barcode ${barcode} tidak ditemukan.`);
+    }
+  };
+
   // Skeleton loader
   if (isLoading) {
     return (
@@ -68,15 +86,25 @@ export function ProductGrid({
       
       {/* Top Bar: Search & Categories */}
       <div className="flex flex-col gap-4 mb-4 shrink-0">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-          <Input 
-            autoFocus
-            placeholder="Cari nama produk atau scan barcode (F1)..." 
-            className="pl-10 h-12 bg-white text-base shadow-sm border-slate-200 rounded-xl"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
+        <div className="flex gap-2 relative">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+            <Input 
+              autoFocus
+              placeholder="Cari nama atau scan (F1)..." 
+              className="pl-10 h-12 bg-white text-base shadow-sm border-slate-200 rounded-xl"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          <Button 
+            variant="outline" 
+            className="h-12 w-12 rounded-xl shrink-0 bg-white border-slate-200" 
+            onClick={() => setIsScannerOpen(true)}
+            title="Scan Barcode via Kamera"
+          >
+            <Camera className="w-5 h-5 text-slate-600" />
+          </Button>
         </div>
 
         {/* Categories Tab */}
@@ -125,24 +153,24 @@ export function ProductGrid({
                 <div 
                   key={product.id}
                   onClick={() => !outOfStock && onAddToCart(product)}
-                  className={`bg-white p-2.5 rounded-xl border border-slate-100 shadow-sm flex flex-col transition-all duration-200 ${
+                  className={`bg-white p-2.5 rounded-xl border shadow-sm flex flex-col transition-all duration-200 ${
                     outOfStock 
-                      ? "opacity-60 grayscale-[0.5] cursor-not-allowed" 
-                      : "cursor-pointer hover:shadow-md hover:border-[#00A76F]/30 active:scale-[0.98]"
+                      ? "border-red-100 cursor-not-allowed opacity-80" 
+                      : "border-slate-100 cursor-pointer hover:shadow-md hover:border-[#00A76F]/30 active:scale-[0.98]"
                   }`}
                 >
                   <div className="w-full aspect-square bg-slate-50 rounded-lg mb-3 relative overflow-hidden flex items-center justify-center">
                     {product.image ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                      <img src={product.image} alt={product.name} className={`w-full h-full object-cover ${outOfStock ? 'grayscale' : ''}`} />
                     ) : (
                       <div className="text-slate-300 flex flex-col items-center">
                         <PackageX className="w-8 h-8 mb-1 opacity-50" />
                       </div>
                     )}
                     {outOfStock && (
-                      <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] flex items-center justify-center">
-                        <span className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-md rotate-[-10deg]">
+                      <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                        <span className="bg-red-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-lg tracking-wide">
                           HABIS
                         </span>
                       </div>
@@ -168,6 +196,12 @@ export function ProductGrid({
           </div>
         )}
       </div>
+
+      <BarcodeScannerModal 
+        isOpen={isScannerOpen} 
+        onClose={() => setIsScannerOpen(false)} 
+        onScan={handleScan} 
+      />
     </div>
   );
 }

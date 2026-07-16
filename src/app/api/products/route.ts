@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const search = searchParams.get("search") || "";
     const categoryId = searchParams.get("categoryId") || "";
+    const filter = searchParams.get("filter") || "";
     const page = parseInt(searchParams.get("page") || "1");
     const limit = 10;
     const skip = (page - 1) * limit;
@@ -39,6 +40,19 @@ export async function GET(request: NextRequest) {
 
     if (categoryId && categoryId !== "all") {
       where.categoryId = categoryId;
+    }
+
+    if (filter === "out_of_stock") {
+      where.stock = 0;
+    } else if (filter === "low_stock") {
+      const lowStockProducts: any[] = await prisma.$queryRaw`
+        SELECT id FROM "Product" 
+        WHERE "tenantId" = ${dbUser.tenantId} 
+        AND "isActive" = true 
+        AND stock <= "lowStockThreshold" 
+        AND stock > 0
+      `;
+      where.id = { in: lowStockProducts.map(p => p.id) };
     }
 
     const [products, total] = await Promise.all([

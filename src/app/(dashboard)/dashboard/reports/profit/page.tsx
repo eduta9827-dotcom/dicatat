@@ -16,6 +16,8 @@ import {
   ResponsiveContainer,
   Legend
 } from "recharts";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -73,8 +75,56 @@ export default function ProfitReportPage() {
     fetchData();
   }, [dateRange]);
 
-  const handlePrint = () => {
-    window.print();
+  const handleExportPDF = () => {
+    if (!data) return;
+
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.width;
+    
+    // Header
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.text("Laporan Profitabilitas", pageWidth / 2, 20, { align: "center" });
+    
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    const dateStr = `Periode: ${dateRange?.from ? format(dateRange.from, "dd/MM/yyyy") : ""} - ${dateRange?.to ? format(dateRange.to, "dd/MM/yyyy") : ""}`;
+    doc.text(dateStr, pageWidth / 2, 28, { align: "center" });
+
+    // Summary
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.text("Ringkasan Profitabilitas", 14, 40);
+    
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Total Pendapatan: ${formatCurrency(data.summary.totalRevenue)}`, 14, 48);
+    doc.text(`Total Modal: ${formatCurrency(data.summary.totalCapital)}`, 14, 54);
+    doc.text(`Profit Bersih: ${formatCurrency(data.summary.totalProfit)}`, 14, 60);
+    doc.text(`Margin Profit: ${data.summary.marginPercentage.toFixed(1)}%`, 14, 66);
+
+    // Table
+    let yPos = 76;
+    doc.setFont("helvetica", "bold");
+    doc.text("Profit per Produk", 14, yPos);
+    
+    autoTable(doc, {
+      startY: yPos + 5,
+      head: [["Nama Produk", "Qty", "Modal", "Pendapatan", "Profit", "Margin"]],
+      body: data.productProfit.map((p: any) => [
+        p.name,
+        p.qty.toString(),
+        formatCurrency(p.capital),
+        formatCurrency(p.revenue),
+        formatCurrency(p.profit),
+        `${p.margin.toFixed(2)}%`
+      ]),
+      theme: 'grid',
+      headStyles: { fillColor: [0, 167, 111] }, // Green matching theme
+      styles: { fontSize: 9 },
+    });
+    
+    doc.save(`laporan_profitabilitas_${new Date().getTime()}.pdf`);
   };
 
   const handleExportCSV = () => {
@@ -126,9 +176,9 @@ export default function ProfitReportPage() {
               <Download className="w-4 h-4 mr-2" />
               CSV
             </Button>
-            <Button onClick={handlePrint} variant="outline" className="flex-1 sm:flex-none">
+            <Button onClick={handleExportPDF} variant="outline" className="flex-1 sm:flex-none text-[#0D1F3D] border-[#0D1F3D]">
               <Printer className="w-4 h-4 mr-2" />
-              PDF
+              Export PDF
             </Button>
           </div>
         </div>

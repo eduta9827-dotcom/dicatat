@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { ProductGrid } from "./ProductGrid";
 import { CartPanel } from "./CartPanel";
 import { PaymentModal } from "./PaymentModal";
@@ -8,7 +8,7 @@ import { ReceiptModal } from "./ReceiptModal";
 import { HoldTransactions, HoldTx } from "./HoldTransactions";
 import { POSProduct, CartItem } from "@/types/pos";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { ShoppingBag, Search } from "lucide-react";
+import { ShoppingBag, PauseCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface POSClientProps {
@@ -19,16 +19,52 @@ interface POSClientProps {
 }
 
 export function POSClient({ initialProducts, categories, tenantId, storeName }: POSClientProps) {
+  const [products, setProducts] = useState<POSProduct[]>(initialProducts);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
-  
+  const [isProductsLoading, setIsProductsLoading] = useState(false);
+
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
   const [isHoldOpen, setIsHoldOpen] = useState(false);
   const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
-  
+
   const [lastTransaction, setLastTransaction] = useState<any>(null);
+
+  // FIX 6: Track hold count for badge
+  const [holdCount, setHoldCount] = useState(0);
+  const storageKey = `dicatat_hold_txs_${tenantId}`;
+
+  const refreshHoldCount = useCallback(() => {
+    try {
+      const stored = localStorage.getItem(storageKey);
+      const holds: HoldTx[] = stored ? JSON.parse(stored) : [];
+      setHoldCount(holds.length);
+    } catch {
+      setHoldCount(0);
+    }
+  }, [storageKey]);
+
+  useEffect(() => {
+    refreshHoldCount();
+  }, [refreshHoldCount]);
+
+  // FIX 2: Re-fetch products from API to update stock after transaction
+  const refreshProducts = useCallback(async () => {
+    setIsProductsLoading(true);
+    try {
+      const res = await fetch("/api/pos/products");
+      const data = await res.json();
+      if (data.success && data.data) {
+        setProducts(data.data);
+      }
+    } catch (err) {
+      console.error("Gagal memuat ulang produk:", err);
+    } finally {
+      setIsProductsLoading(false);
+    }
+  }, []);
 
   // Keyboard Shortcuts
   useEffect(() => {
@@ -53,8 +89,8 @@ export function POSClient({ initialProducts, categories, tenantId, storeName }: 
       const existing = prev.find(item => item.product.id === product.id);
       if (existing) {
         if (existing.qty >= product.stock) return prev; // Prevent adding more than stock
-        return prev.map(item => 
-          item.product.id === product.id 
+        return prev.map(item =>
+          item.product.id === product.id
             ? { ...item, qty: item.qty + 1, subtotal: (item.qty + 1) * item.product.sellPrice }
             : item
         );
@@ -68,7 +104,7 @@ export function POSClient({ initialProducts, categories, tenantId, storeName }: 
       removeFromCart(productId);
       return;
     }
-    
+
     setCart(prev => prev.map(item => {
       if (item.product.id === productId) {
         const qty = Math.min(newQty, item.product.stock); // Cap at stock
@@ -84,8 +120,8 @@ export function POSClient({ initialProducts, categories, tenantId, storeName }: 
 
   const holdTransaction = () => {
     if (cart.length === 0) return;
-    
-    const holdName = prompt("Masukkan nama/catatan untuk transaksi ini:", `Customer ${new Date().toLocaleTimeString('id-ID')}`);
+
+    const holdName = prompt("Masukkan nama/catatan untuk transaksi ini:", `Customer ${new Date().toLocaleTimeString("id-ID")}`);
     if (!holdName) return;
 
     const newHold: HoldTx = {
@@ -95,13 +131,13 @@ export function POSClient({ initialProducts, categories, tenantId, storeName }: 
       createdAt: Date.now()
     };
 
-    const storageKey = `dicatat_hold_txs_${tenantId}`;
     const existing = localStorage.getItem(storageKey);
     const holds = existing ? JSON.parse(existing) : [];
-    
+
     localStorage.setItem(storageKey, JSON.stringify([newHold, ...holds]));
     setCart([]);
     setIsMobileCartOpen(false);
+    refreshHoldCount();
   };
 
   const totalItems = cart.reduce((sum, item) => sum + item.qty, 0);
@@ -109,13 +145,13 @@ export function POSClient({ initialProducts, categories, tenantId, storeName }: 
 
   return (
     <div className="flex flex-col md:flex-row h-full overflow-hidden relative bg-white">
-      
+
       {/* Left Panel: Product Grid */}
       <div className="flex-1 overflow-hidden h-full">
-        <ProductGrid 
-          products={initialProducts}
+        <ProductGrid
+          products={products}
           categories={categories}
-          isLoading={false}
+          isLoading={isProductsLoading}
           onAddToCart={addToCart}
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
@@ -126,7 +162,7 @@ export function POSClient({ initialProducts, categories, tenantId, storeName }: 
 
       {/* Right Panel: Cart (Desktop) */}
       <div className="hidden md:block w-[400px] shrink-0 border-l border-slate-200">
-        <CartPanel 
+        <CartPanel
           cart={cart}
           updateQty={updateQty}
           removeFromCart={removeFromCart}
@@ -156,7 +192,7 @@ export function POSClient({ initialProducts, categories, tenantId, storeName }: 
             </Button>
           } />
           <SheetContent side="bottom" className="h-[85vh] p-0 rounded-t-2xl">
-            <CartPanel 
+            <CartPanel
               cart={cart}
               updateQty={updateQty}
               removeFromCart={removeFromCart}
@@ -171,18 +207,28 @@ export function POSClient({ initialProducts, categories, tenantId, storeName }: 
         </Sheet>
       </div>
 
-      {/* Floating Hold Transactions Button */}
-      <Button 
-        variant="outline" 
-        size="icon"
-        className="fixed bottom-[140px] md:bottom-6 right-4 md:right-[420px] rounded-full shadow-lg h-12 w-12 bg-white border-slate-200 text-slate-600 hover:text-[#0D1F3D] hover:border-[#0D1F3D] z-30"
-        onClick={() => setIsHoldOpen(true)}
-      >
-        <Search className="w-5 h-5" />
-      </Button>
+      {/* FIX 6: Floating Hold Transactions Button with count badge */}
+      <div className="fixed bottom-[140px] md:bottom-6 right-4 md:right-[420px] z-30">
+        <Button
+          variant="outline"
+          className="relative rounded-full shadow-lg h-12 px-4 gap-2 bg-white border-slate-200 text-slate-700 hover:text-[#0D1F3D] hover:border-[#0D1F3D] font-semibold text-sm"
+          onClick={() => {
+            refreshHoldCount();
+            setIsHoldOpen(true);
+          }}
+        >
+          <PauseCircle className="w-5 h-5 text-orange-500" />
+          <span className="hidden sm:inline">Hold</span>
+          {holdCount > 0 && (
+            <span className="absolute -top-2 -right-2 bg-orange-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1 border-2 border-white">
+              {holdCount}
+            </span>
+          )}
+        </Button>
+      </div>
 
       {/* Modals */}
-      <PaymentModal 
+      <PaymentModal
         isOpen={isPaymentOpen}
         onClose={() => setIsPaymentOpen(false)}
         subtotal={subtotal}
@@ -194,19 +240,29 @@ export function POSClient({ initialProducts, categories, tenantId, storeName }: 
         }}
       />
 
-      <ReceiptModal 
+      <ReceiptModal
         isOpen={isReceiptOpen}
         onClose={() => setIsReceiptOpen(false)}
         transaction={lastTransaction}
         storeName={storeName}
-        onNewTransaction={() => setCart([])}
+        onNewTransaction={() => {
+          setCart([]);
+          // FIX 2: Re-fetch products to update stock counts
+          refreshProducts();
+        }}
       />
 
-      <HoldTransactions 
+      <HoldTransactions
         isOpen={isHoldOpen}
-        onClose={() => setIsHoldOpen(false)}
+        onClose={() => {
+          setIsHoldOpen(false);
+          refreshHoldCount();
+        }}
         tenantId={tenantId}
-        onResume={(heldCart) => setCart(heldCart)}
+        onResume={(heldCart) => {
+          setCart(heldCart);
+          refreshHoldCount();
+        }}
       />
 
     </div>

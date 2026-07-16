@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Trash2, Plus, Minus, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/utils";
@@ -12,6 +13,92 @@ interface CartPanelProps {
   clearCart: () => void;
   onPayClick: () => void;
   onHoldClick: () => void;
+}
+
+// Internal QtyInput component to manage local input state
+function QtyInput({ item, updateQty, removeFromCart }: {
+  item: CartItem;
+  updateQty: (productId: string, newQty: number) => void;
+  removeFromCart: (productId: string) => void;
+}) {
+  const [inputVal, setInputVal] = useState(String(item.qty));
+  const stock = item.product.stock;
+  const overStock = item.qty > stock;
+
+  const commitQty = (val: string) => {
+    const num = parseInt(val, 10);
+    if (isNaN(num) || num < 1) {
+      setInputVal(String(item.qty)); // revert
+      return;
+    }
+    const capped = Math.min(num, stock);
+    setInputVal(String(capped));
+    updateQty(item.product.id, capped);
+  };
+
+  // Sync when external qty changes (e.g. via +/- buttons)
+  const displayVal = inputVal !== String(item.qty) ? inputVal : String(item.qty);
+
+  return (
+    <div className="flex-1 min-w-0">
+      <h3 className="text-sm font-semibold text-slate-800 line-clamp-1 truncate">
+        {item.product.name}
+      </h3>
+      <div className="text-[#00A76F] font-bold text-xs mt-0.5">
+        {formatCurrency(item.product.sellPrice)}
+      </div>
+
+      <div className="flex items-center gap-3 mt-2">
+        <div className={`flex items-center border rounded-lg overflow-hidden ${
+          overStock ? 'border-red-400 bg-red-50' : 'bg-slate-50 border-slate-200'
+        }`}>
+          <button
+            onClick={() => {
+              const next = item.qty - 1;
+              setInputVal(String(Math.max(1, next)));
+              updateQty(item.product.id, next);
+            }}
+            className="w-7 h-7 flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-colors"
+          >
+            <Minus className="w-3 h-3" />
+          </button>
+          <input
+            type="number"
+            min={1}
+            max={stock}
+            value={displayVal}
+            onChange={(e) => setInputVal(e.target.value)}
+            onBlur={(e) => commitQty(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') commitQty((e.target as HTMLInputElement).value);
+            }}
+            className="w-10 text-center text-xs font-semibold text-slate-700 bg-transparent border-0 outline-none focus:ring-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+          />
+          <button
+            onClick={() => {
+              const next = item.qty + 1;
+              setInputVal(String(next));
+              updateQty(item.product.id, next);
+            }}
+            className="w-7 h-7 flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-colors"
+          >
+            <Plus className="w-3 h-3" />
+          </button>
+        </div>
+        <button
+          onClick={() => removeFromCart(item.product.id)}
+          className="text-red-400 hover:text-red-600 p-1 transition-colors"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </div>
+      {overStock && (
+        <p className="text-[10px] text-red-500 mt-1 font-medium">
+          ⚠ Melebihi stok! Maks: {stock}
+        </p>
+      )}
+    </div>
+  );
 }
 
 export function CartPanel({
@@ -56,42 +143,9 @@ export function CartPanel({
           <div className="space-y-4">
             {cart.map((item) => (
               <div key={item.product.id} className="flex gap-3 items-start border-b border-slate-50 pb-4 last:border-0">
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-sm font-semibold text-slate-800 line-clamp-1 truncate">
-                    {item.product.name}
-                  </h3>
-                  <div className="text-[#00A76F] font-bold text-xs mt-0.5">
-                    {formatCurrency(item.product.sellPrice)}
-                  </div>
-                  
-                  <div className="flex items-center gap-3 mt-2">
-                    <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg">
-                      <button 
-                        onClick={() => updateQty(item.product.id, item.qty - 1)}
-                        className="w-7 h-7 flex items-center justify-center text-slate-500 hover:bg-slate-200 rounded-l-lg transition-colors"
-                      >
-                        <Minus className="w-3 h-3" />
-                      </button>
-                      <span className="w-8 text-center text-xs font-semibold text-slate-700">
-                        {item.qty}
-                      </span>
-                      <button 
-                        onClick={() => updateQty(item.product.id, item.qty + 1)}
-                        className="w-7 h-7 flex items-center justify-center text-slate-500 hover:bg-slate-200 rounded-r-lg transition-colors"
-                      >
-                        <Plus className="w-3 h-3" />
-                      </button>
-                    </div>
-                    <button 
-                      onClick={() => removeFromCart(item.product.id)}
-                      className="text-red-400 hover:text-red-600 p-1 transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
+                <QtyInput item={item} updateQty={updateQty} removeFromCart={removeFromCart} />
                 
-                <div className="text-right shrink-0 font-bold text-sm text-[#0D1F3D]">
+                <div className="text-right shrink-0 font-bold text-sm text-[#0D1F3D] pt-0.5">
                   {formatCurrency(item.subtotal)}
                 </div>
               </div>
