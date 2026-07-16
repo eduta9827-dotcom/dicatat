@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
-import { PaymentMethod, PaymentStatus, Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
+import type { PaymentMethod, PaymentStatus } from "@/types/prisma";
 
 export async function GET(request: NextRequest) {
   try {

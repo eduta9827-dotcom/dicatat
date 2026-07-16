@@ -16,7 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatCurrency } from "@/lib/utils";
-import { PaymentMethod, PaymentStatus } from "@prisma/client";
+import type { PaymentMethod, PaymentStatus } from "@/types/prisma";
 
 interface Transaction {
   id: string;
