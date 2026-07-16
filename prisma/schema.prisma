@@ -1,0 +1,224 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+}
+
+// =====================
+// ENUMS
+// =====================
+
+enum Plan {
+  TRIAL
+  STARTER
+  PRO
+  BUSINESS
+}
+
+enum Role {
+  SUPERADMIN
+  OWNER
+  ADMIN
+  KASIR
+}
+
+enum PaymentMethod {
+  CASH
+  TRANSFER
+  QRIS
+  PAY_LATER
+}
+
+enum PaymentStatus {
+  PAID
+  PENDING
+  PARTIAL
+}
+
+// =====================
+// MODELS
+// =====================
+
+model Tenant {
+  id                   String    @id @default(cuid())
+  name                 String
+  slug                 String    @unique
+  logo                 String?
+  address              String?
+  phone                String?
+  email                String    @unique
+  plan                 Plan      @default(TRIAL)
+  trialEndsAt          DateTime?
+  subscriptionEndsAt   DateTime?
+  receiptHeader        String?
+  receiptFooter        String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  users                User[]
+  products             Product[]
+  categories           Category[]
+  customers            Customer[]
+  transactions         Transaction[]
+  suppliers            Supplier[]
+  subscriptions        Subscription[]
+}
+
+model User {
+  id        String   @id @default(cuid())
+  tenantId  String
+  authId    String   @unique // Supabase Auth UID
+  email     String
+  name      String
+  role      Role     @default(KASIR)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id])
+  transactions Transaction[]
+}
+
+model Category {
+  id        String    @id @default(cuid())
+  tenantId  String
+  name      String
+  createdAt DateTime  @default(now())
+
+  tenant    Tenant    @relation(fields: [tenantId], references: [id])
+  products  Product[]
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  tenantId    String
+  categoryId  String?
+  name        String
+  sku         String?
+  barcode     String?
+  buyPrice    Int      @default(0)
+  sellPrice   Int
+  stock       Int      @default(0)
+  minStock    Int      @default(5)
+  image       String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant             @relation(fields: [tenantId], references: [id])
+  category    Category?          @relation(fields: [categoryId], references: [id])
+  details     TransactionDetail[]
+}
+
+model Customer {
+  id           String   @id @default(cuid())
+  tenantId     String
+  name         String
+  phone        String?
+  address      String?
+  totalSpent   Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id])
+  transactions Transaction[]
+  receivables  Receivable[]
+}
+
+model Supplier {
+  id        String   @id @default(cuid())
+  tenantId  String
+  name      String
+  phone     String?
+  address   String?
+  email     String?
+  createdAt DateTime @default(now())
+
+  tenant    Tenant     @relation(fields: [tenantId], references: [id])
+  payables  Payable[]
+}
+
+model Transaction {
+  id             String        @id @default(cuid())
+  tenantId       String
+  invoice        String        @unique
+  cashierId      String
+  customerId     String?
+  subtotal       Int
+  discountAmount Int           @default(0)
+  grandTotal     Int
+  paidAmount     Int           @default(0)
+  changeAmount   Int           @default(0)
+  paymentMethod  PaymentMethod @default(CASH)
+  paymentStatus  PaymentStatus @default(PAID)
+  dueDate        DateTime?
+  notes          String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  tenant     Tenant              @relation(fields: [tenantId], references: [id])
+  cashier    User                @relation(fields: [cashierId], references: [id])
+  customer   Customer?           @relation(fields: [customerId], references: [id])
+  details    TransactionDetail[]
+  receivable Receivable?
+}
+
+model TransactionDetail {
+  id            String      @id @default(cuid())
+  transactionId String
+  productId     String
+  productName   String
+  buyPrice      Int
+  sellPrice     Int
+  qty           Int
+  subtotal      Int
+  profit        Int
+
+  transaction   Transaction @relation(fields: [transactionId], references: [id])
+  product       Product     @relation(fields: [productId], references: [id])
+}
+
+model Receivable {
+  id            String      @id @default(cuid())
+  tenantId      String
+  transactionId String      @unique
+  customerId    String
+  amount        Int
+  paidAmount    Int         @default(0)
+  dueDate       DateTime?
+  isPaid        Boolean     @default(false)
+  createdAt     DateTime    @default(now())
+
+  transaction   Transaction @relation(fields: [transactionId], references: [id])
+  customer      Customer    @relation(fields: [customerId], references: [id])
+}
+
+model Payable {
+  id         String   @id @default(cuid())
+  tenantId   String
+  supplierId String
+  amount     Int
+  paidAmount Int      @default(0)
+  dueDate    DateTime?
+  isPaid     Boolean  @default(false)
+  notes      String?
+  createdAt  DateTime @default(now())
+
+  supplier   Supplier @relation(fields: [supplierId], references: [id])
+}
+
+model Subscription {
+  id          String   @id @default(cuid())
+  tenantId    String
+  plan        Plan
+  amount      Int
+  orderId     String   @unique
+  status      String   @default("pending")
+  startDate   DateTime?
+  endDate     DateTime?
+  createdAt   DateTime @default(now())
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+}
