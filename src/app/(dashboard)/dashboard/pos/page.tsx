@@ -2,11 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import { POSClient } from "@/components/pos/POSClient";
-import type { Product, Category } from "@prisma/client";
 
-type ProductWithCategory = Product & {
-  category: Category | null;
-};
 
 export const metadata = {
   title: "Kasir (POS) - Dicatat",
@@ -47,7 +43,18 @@ export default async function POSPage() {
   ]);
 
   // Format products for POSClient
-  const initialProducts = productsData.map((p: ProductWithCategory) => ({
+  const initialProducts = productsData.map((p: {
+    id: string;
+    name: string;
+    categoryId: string | null;
+    sku: string | null;
+    barcode: string | null;
+    buyPrice: number;
+    sellPrice: number;
+    stock: number;
+    image: string | null;
+    category: { id: string; name: string } | null;
+  }) => ({
     id: p.id,
     name: p.name,
     categoryId: p.categoryId,
