@@ -83,7 +83,11 @@ export async function GET(
       ...customer,
       totalTransactions: customer._count.transactions,
       lastVisit: customer.transactions[0]?.createdAt || null,
-      favoriteProducts: favoriteProducts.map(p => ({
+      favoriteProducts: favoriteProducts.map((p: {
+        productId: string;
+        productName: string;
+        _sum: { qty: number | null };
+      }) => ({
         id: p.productId,
         name: p.productName,
         qty: p._sum.qty
