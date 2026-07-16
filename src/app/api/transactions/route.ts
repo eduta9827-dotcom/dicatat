@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
-import { Prisma } from "@prisma/client";
 import type { PaymentMethod, PaymentStatus } from "@/types/prisma";
 
 export async function GET(request: NextRequest) {
@@ -33,7 +32,7 @@ export async function GET(request: NextRequest) {
     const skip = (page - 1) * limit;
 
     // Base where clause
-    const where: Prisma.TransactionWhereInput = {
+    const where: any = {
       tenantId: dbUser.tenantId,
     };
 
