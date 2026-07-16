@@ -88,7 +88,7 @@ export default async function DashboardPage() {
     salesByDate[dateStr] = 0;
   }
 
-  transactions7Days.forEach((t) => {
+  transactions7Days.forEach((t: { createdAt: Date; grandTotal: number }) => {
     const dateStr = new Date(t.createdAt).toLocaleDateString("id-ID", { day: '2-digit', month: 'short' });
     if (salesByDate[dateStr] !== undefined) {
       salesByDate[dateStr] += t.grandTotal;
