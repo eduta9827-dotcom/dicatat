@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Loader2, DollarSign, CreditCard, QrCode, CalendarClock, X, Plus } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Loader2, DollarSign, CreditCard, QrCode, CalendarClock, X, Plus, Upload, ImageIcon } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { formatCurrency } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
 
 interface PaymentModalProps {
   isOpen: boolean;
@@ -31,12 +32,18 @@ export function PaymentModal({
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Payment proof state (TRANSFER & QRIS only)
+  const [referenceNumber, setReferenceNumber] = useState("");
+  const [paymentProofUrl, setPaymentProofUrl] = useState<string | null>(null);
+  const [uploadingProof, setUploadingProof] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   // Customer state
   const [selectedCustomer, setSelectedCustomer] = useState<{id: string, name: string, phone: string} | null>(null);
   const [customerSearch, setCustomerSearch] = useState("");
   const [customerResults, setCustomerResults] = useState<any[]>([]);
   const [showAddCustomer, setShowAddCustomer] = useState(false);
-  
+
   // New customer form state
   const [newCustomerName, setNewCustomerName] = useState("");
   const [newCustomerPhone, setNewCustomerPhone] = useState("");
@@ -66,6 +73,9 @@ export function PaymentModal({
       setCustomerSearch("");
       setCustomerResults([]);
       setShowAddCustomer(false);
+      setReferenceNumber("");
+      setPaymentProofUrl(null);
+      setUploadingProof(false);
     }
   }, [isOpen]);
 
@@ -88,6 +98,56 @@ export function PaymentModal({
     }, 300);
     return () => clearTimeout(timer);
   }, [customerSearch]);
+
+  // Upload bukti pembayaran ke Supabase Storage
+  const handleProofUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validasi ukuran max 5MB
+    if (file.size > 5 * 1024 * 1024) {
+      setError("Ukuran foto maksimal 5MB.");
+      return;
+    }
+
+    // Validasi tipe file
+    if (!file.type.startsWith("image/")) {
+      setError("File harus berupa gambar (JPG, PNG, dll).");
+      return;
+    }
+
+    setUploadingProof(true);
+    setError(null);
+
+    try {
+      const supabase = createClient();
+      const ext = file.name.split(".").pop();
+      const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+
+      const { data, error: uploadError } = await supabase.storage
+        .from("payment-proofs")
+        .upload(fileName, file, { upsert: false });
+
+      if (uploadError) {
+        console.error("Upload error:", uploadError);
+        setError("Gagal mengupload foto bukti. Pastikan bucket 'payment-proofs' sudah dibuat di Supabase.");
+        return;
+      }
+
+      if (data) {
+        const { data: urlData } = supabase.storage
+          .from("payment-proofs")
+          .getPublicUrl(data.path);
+        setPaymentProofUrl(urlData.publicUrl);
+      }
+    } catch (err) {
+      setError("Terjadi kesalahan saat mengupload foto bukti.");
+    } finally {
+      setUploadingProof(false);
+      // Reset input so same file can be re-uploaded
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
 
   const handleAddCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -149,6 +209,8 @@ export function PaymentModal({
         paidAmount: paymentMethod === "PAY_LATER" ? 0 : paidVal,
         dueDate: paymentMethod === "PAY_LATER" ? dueDate : null,
         customerId: selectedCustomer?.id || null,
+        referenceNumber: (paymentMethod === "TRANSFER" || paymentMethod === "QRIS") ? (referenceNumber || null) : null,
+        paymentProofUrl: (paymentMethod === "TRANSFER" || paymentMethod === "QRIS") ? (paymentProofUrl || null) : null,
       };
 
       const res = await fetch("/api/pos", {
@@ -170,6 +232,8 @@ export function PaymentModal({
     }
   };
 
+  const needsProof = paymentMethod === "TRANSFER" || paymentMethod === "QRIS";
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !isProcessing && !open && onClose()}>
       <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
@@ -187,7 +251,7 @@ export function PaymentModal({
             )}
             <div className="space-y-2">
               <Label>Nama Pelanggan *</Label>
-              <Input 
+              <Input
                 value={newCustomerName}
                 onChange={(e) => setNewCustomerName(e.target.value)}
                 placeholder="Nama lengkap"
@@ -196,7 +260,7 @@ export function PaymentModal({
             </div>
             <div className="space-y-2">
               <Label>No. Telepon *</Label>
-              <Input 
+              <Input
                 value={newCustomerPhone}
                 onChange={(e) => setNewCustomerPhone(e.target.value)}
                 placeholder="0812..."
@@ -205,7 +269,7 @@ export function PaymentModal({
             </div>
             <div className="space-y-2">
               <Label>Alamat (Opsional)</Label>
-              <Textarea 
+              <Textarea
                 value={newCustomerAddress}
                 onChange={(e) => setNewCustomerAddress(e.target.value)}
                 placeholder="Alamat pelanggan"
@@ -245,8 +309,8 @@ export function PaymentModal({
                     key={method.id}
                     onClick={() => setPaymentMethod(method.id as any)}
                     className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 cursor-pointer transition-all ${
-                      isActive 
-                        ? "border-[#00A76F] bg-[#00A76F]/10 text-[#00A76F]" 
+                      isActive
+                        ? "border-[#00A76F] bg-[#00A76F]/10 text-[#00A76F]"
                         : "border-slate-100 bg-white text-slate-500 hover:border-slate-200"
                     }`}
                   >
@@ -260,14 +324,14 @@ export function PaymentModal({
             {/* Customer Selection */}
             <div className="space-y-2">
               <label className="text-sm font-medium">
-                Pelanggan 
+                Pelanggan
                 {paymentMethod === 'PAY_LATER' ? (
                   <span className="text-red-500 ml-1">*wajib</span>
                 ) : (
                   <span className="text-slate-400 ml-1">(opsional)</span>
                 )}
               </label>
-              
+
               {selectedCustomer ? (
                 <div className="flex items-center justify-between p-3 bg-[#00A76F]/10 border border-[#00A76F]/20 rounded-md">
                   <div>
@@ -324,7 +388,7 @@ export function PaymentModal({
               </div>
               <div className="flex justify-between text-sm items-center">
                 <span className="text-slate-500">Diskon (Rp)</span>
-                <Input 
+                <Input
                   type="number"
                   value={discount}
                   onChange={(e) => setDiscount(e.target.value)}
@@ -340,13 +404,14 @@ export function PaymentModal({
               </div>
             </div>
 
+            {/* CASH: Nominal uang */}
             {paymentMethod === "CASH" && (
               <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
                 <div className="space-y-2">
                   <Label>Nominal Uang Diterima</Label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">Rp</span>
-                    <Input 
+                    <Input
                       type="number"
                       value={paidAmount}
                       onChange={(e) => setPaidAmount(e.target.value)}
@@ -358,10 +423,10 @@ export function PaymentModal({
                 </div>
                 <div className="flex gap-2 flex-wrap">
                   {suggestedAmounts.map((amt) => (
-                    <Button 
-                      key={amt} 
-                      type="button" 
-                      variant="outline" 
+                    <Button
+                      key={amt}
+                      type="button"
+                      variant="outline"
                       size="sm"
                       onClick={() => setPaidAmount(amt.toString())}
                     >
@@ -369,7 +434,7 @@ export function PaymentModal({
                     </Button>
                   ))}
                 </div>
-                
+
                 {paidVal >= grandTotal && (
                   <div className="bg-[#00A76F]/10 text-[#00A76F] p-4 rounded-xl flex justify-between items-center">
                     <span className="font-semibold">Kembalian</span>
@@ -379,11 +444,12 @@ export function PaymentModal({
               </div>
             )}
 
+            {/* PAY_LATER: Jatuh tempo */}
             {paymentMethod === "PAY_LATER" && (
               <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
                 <div className="space-y-2">
                   <Label>Tanggal Jatuh Tempo <span className="text-red-500">*</span></Label>
-                  <Input 
+                  <Input
                     type="date"
                     value={dueDate}
                     onChange={(e) => setDueDate(e.target.value)}
@@ -394,14 +460,92 @@ export function PaymentModal({
               </div>
             )}
 
+            {/* TRANSFER / QRIS: Bukti Pembayaran */}
+            {needsProof && (
+              <div className="space-y-3 p-4 bg-blue-50/50 border border-blue-100 rounded-xl animate-in fade-in slide-in-from-top-2">
+                <p className="text-sm font-semibold text-slate-700">
+                  Bukti Pembayaran <span className="text-slate-400 font-normal">(opsional)</span>
+                </p>
+
+                {/* No. Referensi */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-slate-500">No. Referensi / Kode Unik</label>
+                  <Input
+                    placeholder="Contoh: 4 digit terakhir atau kode transfer"
+                    value={referenceNumber}
+                    onChange={(e) => setReferenceNumber(e.target.value)}
+                    className="bg-white"
+                  />
+                </div>
+
+                {/* Upload foto bukti */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-slate-500">Foto Bukti Transfer</label>
+
+                  {paymentProofUrl ? (
+                    <div className="relative rounded-lg overflow-hidden border border-slate-200">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={paymentProofUrl}
+                        alt="Bukti pembayaran"
+                        className="w-full h-36 object-cover"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setPaymentProofUrl(null)}
+                        className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 shadow-md transition-colors"
+                      >
+                        <X size={12} />
+                      </button>
+                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/50 to-transparent p-2">
+                        <p className="text-white text-[10px] font-medium">Bukti berhasil diupload ✓</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      className={`border-2 border-dashed rounded-lg p-5 text-center cursor-pointer transition-colors ${
+                        uploadingProof
+                          ? "border-blue-300 bg-blue-50 cursor-wait"
+                          : "border-slate-200 bg-white hover:border-[#00A76F] hover:bg-[#00A76F]/5"
+                      }`}
+                      onClick={() => !uploadingProof && fileInputRef.current?.click()}
+                    >
+                      {uploadingProof ? (
+                        <div className="flex flex-col items-center gap-1.5">
+                          <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+                          <p className="text-xs text-blue-600 font-medium">Mengupload...</p>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center gap-1.5">
+                          <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center">
+                            <Upload size={18} className="text-slate-400" />
+                          </div>
+                          <p className="text-xs font-medium text-slate-600">Klik untuk upload foto bukti</p>
+                          <p className="text-[10px] text-slate-400">JPG, PNG • Maks 5MB</p>
+                        </div>
+                      )}
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleProofUpload}
+                        disabled={uploadingProof}
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             <DialogFooter>
               <Button type="button" variant="outline" onClick={onClose} disabled={isProcessing}>
                 Batal
               </Button>
-              <Button 
-                type="submit" 
+              <Button
+                type="submit"
                 className="bg-[#00A76F] hover:bg-[#00A76F]/90 text-white min-w-[140px]"
-                disabled={isProcessing || (paymentMethod === "CASH" && paidVal < grandTotal)}
+                disabled={isProcessing || uploadingProof || (paymentMethod === "CASH" && paidVal < grandTotal)}
               >
                 {isProcessing ? (
                   <>

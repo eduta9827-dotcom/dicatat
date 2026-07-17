@@ -172,43 +172,66 @@ export function POSClient({ initialProducts, categories, tenantId, storeName }: 
         />
       </div>
 
-      {/* Mobile Cart Button (Fixed Bottom) */}
-      <div className="md:hidden fixed bottom-[64px] left-0 right-0 p-4 bg-white border-t border-slate-200 shadow-[0_-4px_12px_rgba(0,0,0,0.05)] z-40">
-        <Sheet open={isMobileCartOpen} onOpenChange={setIsMobileCartOpen}>
-          <SheetTrigger render={
-            <Button className="w-full h-14 bg-[#0D1F3D] hover:bg-[#0D1F3D]/90 text-white rounded-xl flex items-center justify-between px-6">
-              <div className="flex items-center gap-3">
-                <div className="relative">
-                  <ShoppingBag className="w-6 h-6" />
-                  {totalItems > 0 && (
-                    <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-[#0D1F3D]">
-                      {totalItems}
-                    </span>
-                  )}
+      {/* Mobile Cart Bar (Fixed Bottom) — di atas BottomNav (h-16=64px) */}
+      <div className="md:hidden fixed bottom-16 left-0 right-0 z-40 bg-white border-t border-slate-200 shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
+        <div className="flex items-center gap-2 p-3">
+          
+          {/* Tombol Hold — icon kecil di kiri */}
+          <button
+            onClick={() => {
+              refreshHoldCount();
+              setIsHoldOpen(true);
+            }}
+            className="relative shrink-0 flex flex-col items-center justify-center w-12 h-12 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 hover:bg-orange-50 hover:border-orange-200 transition-colors"
+          >
+            <PauseCircle className="w-5 h-5 text-orange-500" />
+            <span className="text-[9px] font-semibold text-orange-600 leading-none mt-0.5">Hold</span>
+            {holdCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 bg-orange-500 text-white text-[9px] font-bold min-w-[16px] h-[16px] rounded-full flex items-center justify-center px-0.5 border border-white">
+                {holdCount}
+              </span>
+            )}
+          </button>
+
+          {/* Tombol Keranjang — flex-1 */}
+          <Sheet open={isMobileCartOpen} onOpenChange={setIsMobileCartOpen}>
+            <SheetTrigger render={
+              <Button className="flex-1 h-12 bg-[#0D1F3D] hover:bg-[#0D1F3D]/90 text-white rounded-xl flex items-center justify-between px-4">
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <ShoppingBag className="w-5 h-5" />
+                    {totalItems > 0 && (
+                      <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-[#0D1F3D]">
+                        {totalItems}
+                      </span>
+                    )}
+                  </div>
+                  <span className="font-bold text-sm">
+                    {totalItems > 0 ? `Keranjang (${totalItems})` : "Keranjang"}
+                  </span>
                 </div>
-                <span className="font-bold text-lg">Keranjang</span>
-              </div>
-              <span className="font-black text-xl">Rp {subtotal.toLocaleString("id-ID")}</span>
-            </Button>
-          } />
-          <SheetContent side="bottom" className="h-[85vh] p-0 rounded-t-2xl">
-            <CartPanel
-              cart={cart}
-              updateQty={updateQty}
-              removeFromCart={removeFromCart}
-              clearCart={() => setCart([])}
-              onPayClick={() => {
-                setIsMobileCartOpen(false);
-                setIsPaymentOpen(true);
-              }}
-              onHoldClick={holdTransaction}
-            />
-          </SheetContent>
-        </Sheet>
+                <span className="font-black text-base">Rp {subtotal.toLocaleString("id-ID")}</span>
+              </Button>
+            } />
+            <SheetContent side="bottom" className="h-[85vh] p-0 rounded-t-2xl">
+              <CartPanel
+                cart={cart}
+                updateQty={updateQty}
+                removeFromCart={removeFromCart}
+                clearCart={() => setCart([])}
+                onPayClick={() => {
+                  setIsMobileCartOpen(false);
+                  setIsPaymentOpen(true);
+                }}
+                onHoldClick={holdTransaction}
+              />
+            </SheetContent>
+          </Sheet>
+        </div>
       </div>
 
-      {/* FIX 6: Floating Hold Transactions Button with count badge */}
-      <div className="fixed bottom-[140px] md:bottom-6 right-4 md:right-[420px] z-30">
+      {/* Floating Hold Button — Desktop only (kanan panel cart) */}
+      <div className="hidden md:block fixed bottom-6 right-[420px] z-30">
         <Button
           variant="outline"
           className="relative rounded-full shadow-lg h-12 px-4 gap-2 bg-white border-slate-200 text-slate-700 hover:text-[#0D1F3D] hover:border-[#0D1F3D] font-semibold text-sm"
@@ -218,7 +241,7 @@ export function POSClient({ initialProducts, categories, tenantId, storeName }: 
           }}
         >
           <PauseCircle className="w-5 h-5 text-orange-500" />
-          <span className="hidden sm:inline">Hold</span>
+          <span>Hold</span>
           {holdCount > 0 && (
             <span className="absolute -top-2 -right-2 bg-orange-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1 border-2 border-white">
               {holdCount}

@@ -138,7 +138,7 @@ export function ProductGrid({
       </div>
 
       {/* Grid */}
-      <div className="flex-1 overflow-y-auto pb-24 md:pb-4 pr-2">
+      <div className="flex-1 overflow-y-auto pb-36 md:pb-4 pr-2">
         {filteredProducts.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-slate-400">
             <PackageX className="w-16 h-16 mb-4 opacity-50" />

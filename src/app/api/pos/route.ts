@@ -38,7 +38,9 @@ export async function POST(request: NextRequest) {
       paidAmount = 0,
       customerId = null,
       dueDate = null,
-      notes = null
+      notes = null,
+      referenceNumber = null,
+      paymentProofUrl = null,
     } = body;
 
     if (!items || items.length === 0) {
@@ -129,6 +131,8 @@ export async function POST(request: NextRequest) {
           paymentStatus,
           dueDate: dueDate ? new Date(dueDate) : null,
           notes,
+          referenceNumber,
+          paymentProofUrl,
           details: {
             create: detailsToCreate
           }

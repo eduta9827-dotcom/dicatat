@@ -157,6 +157,8 @@ model Transaction {
   paymentStatus  PaymentStatus @default(PAID)
   dueDate        DateTime?
   notes          String?
+  referenceNumber  String?   // nomor referensi transfer/QRIS
+  paymentProofUrl  String?   // URL foto bukti transfer/QRIS
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
