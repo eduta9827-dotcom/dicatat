@@ -88,18 +88,26 @@ export async function POST(request: NextRequest) {
       }
 
       const grandTotal = subtotal - discountAmount;
-      
+
       let changeAmount = 0;
       let paymentStatus = "PAID";
-      
+      let effectivePaidAmount = paidAmount;
+
       if (paymentMethod === "PAY_LATER") {
+        // Kasbon: belum dibayar
         paymentStatus = "PENDING";
+        effectivePaidAmount = 0;
         changeAmount = 0;
-      } else {
-        if (paidAmount < grandTotal) {
+      } else if (paymentMethod === "CASH") {
+        // Tunai: wajib validasi nominal
+        if (!effectivePaidAmount || effectivePaidAmount < grandTotal) {
           throw new Error("Uang pembayaran kurang dari total tagihan");
         }
-        changeAmount = paidAmount - grandTotal;
+        changeAmount = effectivePaidAmount - grandTotal;
+      } else {
+        // TRANSFER / QRIS: langsung lunas, nominal = grandTotal, kembalian = 0
+        effectivePaidAmount = grandTotal;
+        changeAmount = 0;
       }
 
       // Generate Invoice
@@ -124,7 +132,7 @@ export async function POST(request: NextRequest) {
           subtotal,
           discountAmount,
           grandTotal,
-          paidAmount: paymentMethod === "PAY_LATER" ? 0 : paidAmount,
+          paidAmount: effectivePaidAmount,
           changeAmount,
           paymentMethod,
           // @ts-ignore - enums matching
