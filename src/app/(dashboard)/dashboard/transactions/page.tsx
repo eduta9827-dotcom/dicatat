@@ -30,6 +30,7 @@ interface Transaction {
   cashier: { name: string };
   customer: { name: string } | null;
   details: { qty: number }[];
+  _count: { details: number };
 }
 
 function TransactionsContent() {
@@ -233,7 +234,7 @@ function TransactionsContent() {
                 <TableHead>Waktu (WIB)</TableHead>
                 <TableHead>Kasir</TableHead>
                 <TableHead>Pelanggan</TableHead>
-                <TableHead className="text-center">Items</TableHead>
+                <TableHead className="text-center">Produk</TableHead>
                 <TableHead className="text-right">Grand Total</TableHead>
                 <TableHead className="text-center">Metode</TableHead>
                 <TableHead className="text-center">Status</TableHead>
@@ -277,7 +278,7 @@ function TransactionsContent() {
                     <TableCell className="text-slate-600">{formatDate(t.createdAt)}</TableCell>
                     <TableCell className="text-slate-600">{t.cashier.name}</TableCell>
                     <TableCell className="text-slate-600">{t.customer?.name || "-"}</TableCell>
-                    <TableCell className="text-center">{t.details.reduce((acc, curr) => acc + curr.qty, 0)}</TableCell>
+                    <TableCell className="text-center">{t._count.details}</TableCell>
                     <TableCell className="text-right font-bold text-[#0D1F3D]">{formatCurrency(t.grandTotal)}</TableCell>
                     <TableCell className="text-center">{renderMethod(t.paymentMethod)}</TableCell>
                     <TableCell className="text-center">{renderStatus(t.paymentStatus)}</TableCell>

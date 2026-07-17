@@ -88,7 +88,7 @@ export async function GET(request: NextRequest) {
       include: {
         cashier: { select: { name: true } },
         customer: { select: { name: true } },
-        details: { select: { qty: true } }, // Included to calculate total items
+        _count: { select: { details: true } }, // jumlah jenis produk
       },
       orderBy: { createdAt: "desc" },
       skip,
